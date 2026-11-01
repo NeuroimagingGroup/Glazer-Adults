@@ -152,6 +152,11 @@ input[type="checkbox"]{display:none;}
 </head>
 <body>
 
+<div id="edit-banner" style="display:none;background:#d97706;color:#fff;padding:8px 20px;font-size:.85rem;font-weight:600;align-items:center;justify-content:center;gap:10px;position:sticky;top:0;z-index:101;">
+  ✏️ מצב עריכה — שינויים יחליפו את הרשומה הקיימת
+  <button id="btn-cancel-edit" style="background:rgba(0,0,0,.2);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.8rem;">ביטול</button>
+</div>
+
 <div class="hdr">
   <div>
     <div class="hdr-title">📋 שאלונים למבוגרים</div>
@@ -195,6 +200,7 @@ input[type="checkbox"]{display:none;}
       </div>
       <div class="fg"><label class="fl">גיל</label><input class="fi" type="number" id="p-age" placeholder="גיל" min="18" max="120"></div>
       <div class="fg"><label class="fl">תאריך מילוי</label><input class="fi" type="date" id="p-date"></div>
+      <div class="fg"><label class="fl">תאריך לידה</label><input class="fi" type="date" id="p-dob"></div>
       <div class="fg"><label class="fl">שנות השכלה</label><input class="fi" type="number" id="p-edu" placeholder="שנות לימוד" min="0" max="30"></div>
       <div class="fg"><label class="fl">קוד נבדק</label><input class="fi" type="text" id="p-code" placeholder="למשל: A001"></div>
     </div>
@@ -317,7 +323,7 @@ input[type="checkbox"]{display:none;}
       <div class="stats" id="stats"></div>
       <div style="overflow-x:auto;">
         <table class="dt">
-          <thead><tr><th>#</th><th>שם</th><th>קוד</th><th>גיל</th><th>מין</th><th>GAD-7</th><th>PIU</th><th>BRIEF-A</th><th>Conners</th><th>BHCQ</th><th>חוסן</th><th>קהילה</th><th>לאומי</th><th>תאריך</th><th>חסרים</th><th>הדפסה</th></tr></thead>
+          <thead><tr><th>#</th><th>שם</th><th>קוד</th><th>גיל</th><th>מין</th><th>GAD-7</th><th>PIU</th><th>BRIEF-A</th><th>Conners</th><th>BHCQ</th><th>חוסן</th><th>קהילה</th><th>לאומי</th><th>תאריך</th><th>חסרים</th><th>הדפסה</th><th>עריכה</th></tr></thead>
           <tbody id="dt-body"></tbody>
         </table>
       </div>
@@ -606,28 +612,55 @@ function printRecord(rec) {
   }
 
   // Personal info
-  var infoRows = [['שם',rec.name||'—'],['קוד',rec.code||'—'],['גיל',rec.age||'—'],['מין',rec.gender||'—'],['השכלה (שנים)',rec.edu||'—'],['תאריך',rec.date||'—']];
+  var infoRows = [
+    ['שם', rec.name||'—'], ['קוד', rec.code||'—'], ['גיל', rec.age||'—'],
+    ['תאריך לידה', rec.dob||'—'], ['מין', rec.gender||'—'],
+    ['השכלה (שנים)', rec.edu||'—'], ['תאריך מילוי', rec.date||'—']
+  ];
   body += secHtml('פרטים אישיים', infoRows);
 
-  // Scored questionnaires
+  // Scored questionnaires — numeric values only (שינוי 3)
   var qSecs = [
-    {title:'GAD-7 (סה"כ: '+rec.gad+')', items:GAD, prefix:'gad', labels:['כלל לא','כמה ימים','יותר ממחצית','כמעט כל יום'], values:[0,1,2,3]},
-    {title:'PIU (סה"כ: '+rec.piu+')', items:PIU, prefix:'piu', labels:['0','1','2','3','4','5'], values:[0,1,2,3,4,5]},
-    {title:'BRIEF-A (סה"כ: '+rec.brief+')', items:BRIEF, prefix:'brief', labels:['אף פעם','מדי פעם','לעיתים קרובות'], values:[1,2,3]},
-    {title:'Conners (סה"כ: '+rec.conners+')', items:CONNERS, prefix:'conners', labels:['אף פעם','לפעמים','לעיתים תכופות','בדרך כלל'], values:[0,1,2,3]}
+    {title:'GAD-7 (סה"כ: '+rec.gad+')', items:GAD, prefix:'gad'},
+    {title:'PIU (סה"כ: '+rec.piu+')', items:PIU, prefix:'piu'},
+    {title:'BRIEF-A (סה"כ: '+rec.brief+')', items:BRIEF, prefix:'brief'},
+    {title:'Conners (סה"כ: '+rec.conners+')', items:CONNERS, prefix:'conners'}
   ];
   for (var si=0; si<qSecs.length; si++) {
     var s = qSecs[si];
     var rows = [];
     for (var qi=0; qi<s.items.length; qi++) {
       var val = raw[s.prefix+'_'+qi];
-      var ansLbl = val !== undefined ? (s.labels[s.values.indexOf(val)] !== undefined ? s.labels[s.values.indexOf(val)] : val) : '⚠️ לא מולא';
-      rows.push([(qi+1)+'. '+s.items[qi], ansLbl]);
+      rows.push([(qi+1)+'. '+s.items[qi], val !== undefined ? val : '⚠️ לא מולא']);
     }
     body += secHtml(s.title, rows);
   }
 
-  // BHCQ
+  // Resilience / חוסן (שינוי 4 — חסר בעבר)
+  var resRows = [];
+  for (var ri=0; ri<Q5.length; ri++) {
+    var rv = raw['q5_'+ri];
+    resRows.push([(ri+1)+'. '+Q5[ri], rv !== undefined ? rv : '⚠️ לא מולא']);
+  }
+  body += secHtml('חוסן – NATAL (סה"כ: '+rec.resilience+')', resRows);
+
+  // Community cohesion
+  var comRows = [];
+  for (var coi=0; coi<Q6.length; coi++) {
+    var cv = raw['q6_'+coi];
+    comRows.push([(coi+1)+'. '+Q6[coi], cv !== undefined ? cv : '⚠️ לא מולא']);
+  }
+  body += secHtml('לכידות קהילתית (סה"כ: '+rec.community+')', comRows);
+
+  // National cohesion
+  var natRows = [];
+  for (var ni=0; ni<Q7.length; ni++) {
+    var nv = raw['q7_'+ni];
+    natRows.push([(ni+1)+'. '+Q7[ni], nv !== undefined ? nv : '⚠️ לא מולא']);
+  }
+  body += secHtml('לכידות לאומית (סה"כ: '+rec.national+')', natRows);
+
+  // BHCQ — numeric values (שינוי 3)
   var bhcqRows = [];
   var bNum = 1;
   for (var ci=0; ci<BHCQ.length; ci++) {
@@ -649,6 +682,59 @@ function printRecord(rec) {
   overlay.style.display = 'flex';
 }
 
+// ── LOAD RECORD FOR EDITING ──────────────────────────────
+var editingIdx = -1;
+
+function loadRecord(rec, idx) {
+  editingIdx = idx;
+  // Close researcher panel
+  document.getElementById('res-overlay').classList.remove('open');
+
+  // Reset form first
+  startNew();
+
+  // Fill personal info
+  document.getElementById('p-name').value = rec.name || '';
+  document.getElementById('p-code').value = rec.code || '';
+  document.getElementById('p-age').value = rec.age || '';
+  document.getElementById('p-dob').value = rec.dob || '';
+  document.getElementById('p-edu').value = rec.edu || '';
+  document.getElementById('p-date').value = rec.date || '';
+  document.getElementById('piu-years').value = rec.piu_years || '';
+  if (rec.gender) {
+    var gr = document.querySelector('input[name="p-gender"][value="'+rec.gender+'"]');
+    if (gr) gr.checked = true;
+  }
+  if (rec.piu_work) {
+    var pw = document.querySelector('input[name="piu-work"][value="'+rec.piu_work+'"]');
+    if (pw) pw.checked = true;
+  }
+  document.getElementById('name-disp').textContent = rec.name || 'עריכה';
+
+  // Restore answers object
+  answers = JSON.parse(JSON.stringify(rec.raw || {}));
+
+  // Re-check all radio buttons based on answers
+  for (var key in answers) {
+    if (!answers.hasOwnProperty(key)) continue;
+    var val = answers[key];
+    // Find radio with this name and value
+    var radios2 = document.querySelectorAll('input[type="radio"][name="'+key+'"]');
+    for (var ri2=0; ri2<radios2.length; ri2++) {
+      if (parseFloat(radios2[ri2].value) === parseFloat(val) || radios2[ri2].value === String(val)) {
+        radios2[ri2].checked = true;
+        break;
+      }
+    }
+  }
+
+  // Show edit banner
+  var banner = document.getElementById('edit-banner');
+  if (banner) banner.style.display = 'flex';
+
+  goTo(0);
+}
+
 function submit() {
   var genderEl = document.querySelector('input[name="p-gender"]:checked');
   var piuWorkEl = document.querySelector('input[name="piu-work"]:checked');
@@ -657,6 +743,7 @@ function submit() {
     name: document.getElementById('p-name').value,
     code: document.getElementById('p-code').value,
     age: document.getElementById('p-age').value,
+    dob: document.getElementById('p-dob').value,
     gender: genderEl ? genderEl.value : '',
     edu: document.getElementById('p-edu').value,
     date: document.getElementById('p-date').value,
@@ -674,8 +761,18 @@ function submit() {
   };
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem('q_data') || '[]'); } catch(e) {}
-  saved.push(record);
+  if (editingIdx >= 0 && editingIdx < saved.length) {
+    record.id = saved[editingIdx].id; // keep original id
+    saved[editingIdx] = record;       // overwrite
+    editingIdx = -1;
+  } else {
+    saved.push(record);
+  }
   try { localStorage.setItem('q_data', JSON.stringify(saved)); } catch(e) {}
+
+  // Hide edit banner
+  var banner = document.getElementById('edit-banner');
+  if (banner) banner.style.display = 'none';
 
   var cards2 = document.querySelectorAll('.card');
   for (var i = 0; i < cards2.length; i++) cards2[i].classList.remove('show');
@@ -685,6 +782,9 @@ function submit() {
 
 function startNew() {
   answers = {};
+  editingIdx = -1;
+  var banner = document.getElementById('edit-banner');
+  if (banner) banner.style.display = 'none';
   var radios = document.querySelectorAll('input[type="radio"]');
   for (var i = 0; i < radios.length; i++) radios[i].checked = false;
   var checks = document.querySelectorAll('input[type="checkbox"]');
@@ -745,7 +845,8 @@ function openResearcher() {
         +'<td>'+(r.conners!=null?r.conners:'—')+'</td><td>'+(r.bhcq!=null?r.bhcq:'—')+'</td><td>'+(r.resilience!=null?r.resilience:'—')+'</td>'
         +'<td>'+(r.community!=null?r.community:'—')+'</td><td>'+(r.national!=null?r.national:'—')+'</td><td>'+(r.date||'—')+'</td>'
         +'<td>'+missingCell+'</td>'
-        +'<td><button class="btn-print" data-idx="'+di+'">🖨️ הדפס</button></td>';
+        +'<td><button class="btn-print" data-idx="'+di+'">🖨️ הדפס</button></td>'
+        +'<td><button class="btn-edit" data-idx="'+di+'" style="background:#d97706;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:.75rem;font-weight:600;cursor:pointer;">✏️ ערוך</button></td>';
       tbody.appendChild(row);
     }
   }
@@ -773,6 +874,19 @@ function openResearcher() {
         if (data2[idx]) printRecord(data2[idx]);
       });
     })(printBtns[pi]);
+  }
+
+  // Edit buttons
+  var editBtns = document.querySelectorAll('.btn-edit');
+  for (var ei=0; ei<editBtns.length; ei++) {
+    (function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-idx'));
+        var data3 = [];
+        try { data3 = JSON.parse(localStorage.getItem('q_data')||'[]'); } catch(e){}
+        if (data3[idx]) loadRecord(data3[idx], idx);
+      });
+    })(editBtns[ei]);
   }
 }
 
@@ -893,6 +1007,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Export
   document.getElementById('btn-csv').addEventListener('click', exportCSV);
   document.getElementById('btn-json').addEventListener('click', exportJSON);
+  document.getElementById('btn-cancel-edit').addEventListener('click', function() {
+    editingIdx = -1;
+    document.getElementById('edit-banner').style.display = 'none';
+    startNew();
+  });
   document.getElementById('btn-do-print').addEventListener('click', function() { window.print(); });
   document.getElementById('btn-close-print').addEventListener('click', function() {
     document.getElementById('print-overlay').style.display = 'none';
